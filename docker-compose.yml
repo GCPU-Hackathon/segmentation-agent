@@ -1,0 +1,27 @@
+version: "3.8"
+
+services:
+  brats:
+    build:
+      context: .
+      args:
+        BRATSUSER: ${UID:-1000}
+        BRATSGROUP: ${GID:-1000}
+        DOCKER_GID: ${DOCKER_GID:-999}
+    image: brats-docker:latest
+    container_name: brats-segmenter
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/workspace
+    stdin_open: true
+    tty: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
