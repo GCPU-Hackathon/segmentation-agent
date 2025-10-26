@@ -33,27 +33,38 @@ async def run_segmentation(task_id: str, request: SegmentationRequest):
         # Run in thread pool to not block async event loop
         loop = asyncio.get_event_loop()
 
+        # Resolve input file paths from study directory (do this outside the blocking function)
+        study_dir = Path("storage") / "studies" / request.study_code
+
+        def find_file(suffix):
+            lst = list(study_dir.glob(f"*{suffix}"))
+            return str(lst[0]) if lst else None
+
+        t1c = find_file("t1c.nii.gz")
+        t1n = find_file("t1n.nii.gz")
+        t2f = find_file("t2f.nii.gz")
+        t2w = find_file("t2w.nii.gz")
+
+        if not all([t1c, t1n, t2f, t2w]):
+            raise RuntimeError(f"Missing required modality files in {study_dir}")
+
+        # Output path placed inside the study directory
+        output_file = str(study_dir / f"segmentation_{task_id}.nii.gz")
+
         def _run_inference():
-            """Blocking function to run in executor"""
+            """Blocking function to run in executor — only runs inference."""
             # Initialize segmenter
             segmenter = AdultGliomaPreAndPostTreatmentSegmenter(
                 algorithm=AdultGliomaPreAndPostTreatmentAlgorithms.BraTS25_1,
                 cuda_devices="0"
             )
 
-            # Determine output path
-            output_file = request.output_path
-            if not output_file:
-                output_dir = Path("output")
-                output_dir.mkdir(exist_ok=True)
-                output_file = str(output_dir / f"segmentation_{task_id}.nii.gz")
-
             # Run inference (this is the long-running operation)
             segmenter.infer_single(
-                t1c=request.t1c_path,
-                t1n=request.t1n_path,
-                t2f=request.t2f_path,
-                t2w=request.t2w_path,
+                t1c=t1c,
+                t1n=t1n,
+                t2f=t2f,
+                t2w=t2w,
                 output_file=output_file,
             )
 
@@ -68,11 +79,12 @@ async def run_segmentation(task_id: str, request: SegmentationRequest):
         result = {
             "output_file": output_file,
             "input_files": {
-                "t1c": request.t1c_path,
-                "t1n": request.t1n_path,
-                "t2f": request.t2f_path,
-                "t2w": request.t2w_path,
-            }
+                "t1c": t1c,
+                "t1n": t1n,
+                "t2f": t2f,
+                "t2w": t2w,
+            },
+            "study_code": request.study_code,
         }
 
         await store_task_data(task_id, {

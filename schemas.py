@@ -2,18 +2,27 @@ from pydantic import BaseModel, field_validator
 from typing import Optional
 from pathlib import Path
 
-class SegmentationRequest(BaseModel):
-    t1c_path: str
-    t1n_path: str
-    t2f_path: str
-    t2w_path: str
-    output_path: Optional[str] = None
+BASE_STUDIES_DIR = Path("storage") / "studies"
 
-    @field_validator('t1c_path', 't1n_path', 't2f_path', 't2w_path')
+class SegmentationRequest(BaseModel):
+    study_code: str
+
+    @field_validator("study_code")
     @classmethod
-    def validate_file_exists(cls, v):
-        if not Path(v).exists():
-            raise ValueError(f"File not found: {v}")
+    def validate_study_dir(cls, v: str):
+        study_dir = BASE_STUDIES_DIR / v
+        if not study_dir.exists() or not study_dir.is_dir():
+            raise ValueError(f"Study directory not found: {study_dir}")
+
+        required_suffixes = ["t1c.nii.gz", "t1n.nii.gz", "t2f.nii.gz", "t2w.nii.gz"]
+        missing = []
+        for suf in required_suffixes:
+            matches = list(study_dir.glob(f"*{suf}"))
+            if not matches:
+                missing.append(suf)
+        if missing:
+            raise ValueError(f"Missing required files in {study_dir}: {', '.join(missing)}")
+
         return v
 
 
