@@ -6,6 +6,7 @@ BASE_STUDIES_DIR = Path("storage") / "studies"
 
 class SegmentationRequest(BaseModel):
     study_code: str
+    simulate: Optional[bool] = False
 
     @field_validator("study_code")
     @classmethod

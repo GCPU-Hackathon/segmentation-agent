@@ -70,6 +70,45 @@ async def run_segmentation(task_id: str, request: SegmentationRequest):
 
             return output_file
 
+        # Prepare inputs dict for metadata
+        inputs = {"t1c": t1c, "t1n": t1n, "t2f": t2f, "t2w": t2w, "study_code": request.study_code}
+
+        # If simulate flag is set, perform a quick simulated run (sleep + use existing *seg.nii.gz file)
+        if getattr(request, "simulate", False):
+            await store_task_data(task_id, {"progress": "Simulating segmentation (fast mode)..."})
+            # Sleep asynchronously for ~60s to simulate runtime
+            await asyncio.sleep(60)
+
+            # Look for an existing segmentation file ending with seg.nii.gz in the study dir
+            segs = list(study_dir.glob("*seg.nii.gz"))
+            if segs:
+                seg_file = str(segs[0])
+                # Use the existing segmentation file directly (do not copy) in simulate mode
+                output_file = seg_file
+
+                # Store completed metadata
+                result = {
+                    "output_file": output_file,
+                    "input_files": {"t1c": t1c, "t1n": t1n, "t2f": t2f, "t2w": t2w},
+                    "study_code": request.study_code,
+                    "simulated": True,
+                }
+
+                await store_task_data(task_id, {
+                    "status": "completed",
+                    "completed_at": datetime.utcnow().isoformat(),
+                    "result": result,
+                    "progress": "Segmentation (simulated) complete!"
+                })
+
+                if redis_client:
+                    await redis_client.expire(f"task:{task_id}", 86400)
+
+                return
+            else:
+                # No seg file to simulate with
+                raise RuntimeError(f"No '*seg.nii.gz' found in {study_dir} to simulate segmentation")
+
         # Execute blocking inference in thread pool
         print(f"[Task {task_id}] Starting inference...")
         output_file = await loop.run_in_executor(None, _run_inference)
