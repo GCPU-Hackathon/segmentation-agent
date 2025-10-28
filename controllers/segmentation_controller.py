@@ -77,13 +77,12 @@ async def run_segmentation(task_id: str, request: SegmentationRequest):
         if getattr(request, "simulate", False):
             await store_task_data(task_id, {"progress": "Simulating segmentation (fast mode)..."})
             # Sleep asynchronously for ~60s to simulate runtime
-            await asyncio.sleep(60)
+            await asyncio.sleep(30)
 
             # Look for an existing segmentation file ending with seg.nii.gz in the study dir
             segs = list(study_dir.glob("*seg.nii.gz"))
             if segs:
                 seg_file = str(segs[0])
-                # Use the existing segmentation file directly (do not copy) in simulate mode
                 output_file = seg_file
 
                 # Store completed metadata
@@ -133,14 +132,12 @@ async def run_segmentation(task_id: str, request: SegmentationRequest):
             "progress": "Segmentation complete!"
         })
 
-        # Set expiry for Redis
         if redis_client:
             await redis_client.expire(f"task:{task_id}", 86400)
 
         print(f"[Task {task_id}] Result stored")
 
     except Exception as e:
-        # Capture full error trace
         error_trace = traceback.format_exc()
         print(f"[Task {task_id}] ERROR: {error_trace}")
 
