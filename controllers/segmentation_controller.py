@@ -77,7 +77,7 @@ async def run_segmentation(task_id: str, request: SegmentationRequest):
         if getattr(request, "simulate", False):
             await store_task_data(task_id, {"progress": "Simulating segmentation (fast mode)..."})
             # Sleep asynchronously for ~60s to simulate runtime
-            await asyncio.sleep(30)
+            await asyncio.sleep(10)
 
             # Look for an existing segmentation file ending with seg.nii.gz in the study dir
             segs = list(study_dir.glob("*seg.nii.gz"))
